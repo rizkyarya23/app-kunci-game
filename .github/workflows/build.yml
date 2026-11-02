@@ -23,7 +23,7 @@ jobs:
       run: gradle wrapper --gradle-version 8.2 --distribution-type bin
 
     - name: 4. Build APK Debug
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleDebug --stacktrace
 
     - name: 5. Simpan File APK
       uses: actions/upload-artifact@v4
