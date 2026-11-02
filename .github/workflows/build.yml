@@ -19,13 +19,10 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: 3. Set Izin Eksekusi Gradle
-      run: chmod +x gradlew || true
+    - name: 3. Build APK Debug
+      run: gradle assembleDebug
 
-    - name: 4. Build APK Debug
-      run: ./gradlew assembleDebug
-
-    - name: 5. Simpan File APK
+    - name: 4. Simpan File APK
       uses: actions/upload-artifact@v4
       with:
         name: KunciGameAnak-Debug
