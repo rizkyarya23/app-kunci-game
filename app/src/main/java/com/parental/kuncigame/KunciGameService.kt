@@ -21,34 +21,59 @@ class KunciGameService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         isPolling = true
+        handler.post {
+            Toast.makeText(applicationContext, "🟢 Layanan Agen Kunci Aktif!", Toast.LENGTH_SHORT).show()
+        }
         mulaiPengecekanServerRutin()
+    }
+
+    private fun fetchJsonWithRedirect(urlString: String): String? {
+        var currentUrl = urlString
+        for (i in 0..3) {
+            val url = URL(currentUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 7000
+            conn.readTimeout = 7000
+            conn.instanceFollowRedirects = true
+
+            val status = conn.responseCode
+            if (status == HttpURLConnection.HTTP_MOVED_TEMP || 
+                status == HttpURLConnection.HTTP_MOVED_PERM || 
+                status == 302 || status == 301) {
+                val newUrl = conn.getHeaderField("Location")
+                if (newUrl != null) {
+                    currentUrl = newUrl
+                    continue
+                }
+            }
+
+            if (status == HttpURLConnection.HTTP_OK) {
+                return conn.inputStream.bufferedReader().use { it.readText() }
+            }
+            break
+        }
+        return null
     }
 
     private fun mulaiPengecekanServerRutin() {
         thread {
             while (isPolling) {
                 try {
-                    val url = URL(scriptUrl)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "GET"
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
-
-                    if (conn.responseCode == 200) {
-                        val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                    val responseText = fetchJsonWithRedirect(scriptUrl)
+                    if (responseText != null) {
                         val json = JSONObject(responseText)
-
                         if (json.optString("status") == "success") {
                             val dataArray = json.getJSONArray("data")
                             val tempLocked = mutableSetOf<String>()
 
                             for (i in 0 until dataArray.length()) {
                                 val item = dataArray.getJSONObject(i)
-                                val pkgName = item.getString("packageName")
-                                val isLocked = item.getBoolean("isLocked")
+                                val pkgName = item.optString("packageName")
+                                val isLocked = item.optBoolean("isLocked", false)
 
-                                if (isLocked) {
-                                    tempLocked.add(pkgName)
+                                if (isLocked && pkgName.isNotEmpty()) {
+                                    tempLocked.add(pkgName.lowercase().trim())
                                 }
                             }
 
@@ -62,7 +87,7 @@ class KunciGameService : AccessibilityService() {
                     e.printStackTrace()
                 }
 
-                Thread.sleep(4000)
+                Thread.sleep(3000)
             }
         }
     }
@@ -70,7 +95,7 @@ class KunciGameService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
-        val openedPackage = event.packageName?.toString() ?: return
+        val openedPackage = event.packageName?.toString()?.lowercase()?.trim() ?: return
 
         synchronized(lockedPackages) {
             if (lockedPackages.contains(openedPackage)) {
